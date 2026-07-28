@@ -3,6 +3,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { BookOpen, User, Lock, ArrowRight, Leaf, Feather } from "lucide-react";
 import loginAnimation from "../utils/loginAnimations";
+import { Link } from "react-router-dom";
 
 function Login() {
   return (
@@ -81,22 +82,7 @@ function Login() {
               Comprehension
             </motion.h1>
 
-            <motion.p
-              variants={loginAnimation.subtitle}
-              initial="hidden"
-              animate="show"
-              className="mx-auto mt-4 max-w-sm text-center text-[15px] leading-7 text-gray-600 italic"
-            >
-              "Every page you read plants another seed of knowledge."
-            </motion.p>
-
-            <div className="my-10 flex items-center">
-              <div className="h-px flex-1 bg-[#D8C48A]" />
-              <BookOpen size={18} className="mx-4 text-[#B18A34]" />
-              <div className="h-px flex-1 bg-[#D8C48A]" />
-            </div>
-
-            <form className="space-y-6">
+            <form className="space-y-6 mt-8">
               <div>
                 <label className="mb-2 block text-sm font-semibold tracking-wide text-[#31563D]">
                   Username
@@ -127,39 +113,31 @@ function Login() {
                   />
                 </div>
               </div>{" "}
-              <div className="flex items-center justify-between pt-2">
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-[#4B5D55]">
-                  <input type="checkbox" className="h-4 w-4 accent-[#35694F]" />
-                  Remember me
-                </label>
-
-                <button
-                  type="button"
-                  className="text-sm font-medium text-[#35694F] transition hover:text-[#214635]"
+              <Link to={'/dashboard'}>
+                <motion.button
+                  variants={loginAnimation.button}
+                  whileHover="hover"
+                  whileTap="tap"
+                  type="submit"
+                  className="group cursor-pointer relative mt-4 flex h-14 w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-r from-[#214635] via-[#35694F] to-[#4F8A64] text-white shadow-xl"
                 >
-                  Forgot Password?
-                </button>
-              </div>
-              <motion.button
-                variants={loginAnimation.button}
-                whileHover="hover"
-                whileTap="tap"
-                type="submit"
-                className="group relative mt-4 flex h-14 w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-r from-[#214635] via-[#35694F] to-[#4F8A64] text-white shadow-xl"
-              >
-                <motion.div
-                  variants={loginAnimation.buttonLight}
-                  animate="animate"
-                  className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent"
-                />
+                  <motion.div
+                    variants={loginAnimation.buttonLight}
+                    animate="animate"
+                    className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                  />
 
-                <span className="relative flex items-center gap-3 font-semibold tracking-wide">
-                  Open Book
-                  <motion.div variants={loginAnimation.arrow} animate="animate">
-                    <ArrowRight size={18} />
-                  </motion.div>
-                </span>
-              </motion.button>
+                  <span className="relative flex items-center gap-3 font-semibold tracking-wide">
+                    Open Book
+                    <motion.div
+                      variants={loginAnimation.arrow}
+                      animate="animate"
+                    >
+                      <ArrowRight size={18} />
+                    </motion.div>
+                  </span>
+                </motion.button>
+              </Link>
             </form>
 
             <div className="my-10 flex items-center">
@@ -168,25 +146,6 @@ function Login() {
                 Begin Learning
               </span>
               <div className="h-px flex-1 bg-[#D8C48A]" />
-            </div>
-
-            <div className="rounded-2xl border border-[#D8C48A] bg-[#FDFBF4] p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#35694F]">
-                  <BookOpen size={18} className="text-white" />
-                </div>
-
-                <div>
-                  <h3 className="font-serif text-lg font-semibold text-[#214635]">
-                    Quote of the Day
-                  </h3>
-
-                  <p className="mt-2 text-sm leading-7 text-gray-600 italic">
-                    "Reading is a conversation between your imagination and the
-                    author's ideas."
-                  </p>
-                </div>
-              </div>
             </div>
 
             <p className="mt-10 text-center text-sm text-[#4B5D55]">
@@ -229,10 +188,6 @@ function Login() {
                 className="h-2 w-2 rounded-full bg-[#C7A64A]"
               />
             </div>
-
-            <p className="mt-8 text-center text-xs tracking-[0.25em] text-[#9C8A61] uppercase">
-              © 2026 Reading Comprehension
-            </p>
           </div>
         </div>
       </motion.div>
