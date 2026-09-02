@@ -2,7 +2,7 @@ import { Drawer, IconButton } from "@mui/material";
 import { X } from "lucide-react";
 
 import Logo from "./Logo";
-import SidebarItem from "./SidebarItem";
+import SideBarItem from "./SideBarItem";
 
 import {
   LayoutDashboard,
@@ -78,7 +78,7 @@ function Sidebar({ open, onClose }) {
 
             <div className="space-y-1">
               {group.items.map((item) => (
-                <SidebarItem
+                <SideBarItem
                   key={item.title}
                   title={item.title}
                   icon={item.icon}
