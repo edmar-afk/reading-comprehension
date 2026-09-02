@@ -8,6 +8,8 @@ import LessonModal from "../components/reading-lessons/LessonModal";
 import LessonPreview from "../components/reading-lessons/LessonPreview";
 import EmptyState from "../components/reading-lessons/EmptyState";
 import DeleteLessonDialog from "../components/reading-lessons/DeleteLessonDialog";
+
+
 const sampleLessons = [
   {
     id: 1,
