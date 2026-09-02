@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import Sidebar from "./Sidebar";
+import SideBar from "./SideBar";
 import Header from "./Header";
 
 function DashboardLayout({ children }) {
@@ -8,8 +8,8 @@ function DashboardLayout({ children }) {
 
   return (
    <div className="min-h-screen bg-slate-100">
-      {/* Sidebar */}
-      <Sidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
+      {/* SideBar */}
+      <SideBar open={mobileOpen} onClose={() => setMobileOpen(false)} />
 
       {/* Main */}
       <div className="lg:ml-[300px]">
