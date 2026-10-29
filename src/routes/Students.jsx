@@ -19,10 +19,12 @@ import user from "../assets/images/user.jpg";
 import Sidebar from "../components/sidebar/SideBar";
 import AddStudentModal from "../components/students/AddStudentModal";
 import EditStudentModal from "../components/students/EditStudentModal";
+import FeedbackModal from "../components/students/FeedbackModal";
 import api from "../assets/api";
 
 const PAGE_SIZE = 5;
 
+// Normalize the student data returned by Django.
 const normalizeStudent = (item) => {
   const firstName = item.first_name || "";
   const lastName = item.last_name || "";
@@ -37,21 +39,16 @@ const normalizeStudent = (item) => {
     ...item,
     id: item.id,
     name,
-    avatarSeed: name,
   };
 };
 
-// Converts the Django TextField rate into a numeric score.
-// Accepts only scores from 1 to 100.
-
+// Accepts rating values such as "16%", "16", or 16.
 const parseScore = (value) => {
   if (value === null || value === undefined || value === "") {
     return null;
   }
 
-  // Accept values such as "16%", "16", or 16.
-  const normalized = String(value).trim().replace(/%$/, "").trim();
-  const score = Number(normalized);
+  const score = Number(String(value).trim().replace(/%$/, "").trim());
 
   if (!Number.isFinite(score) || score < 0 || score > 100) {
     return null;
@@ -62,11 +59,21 @@ const parseScore = (value) => {
 
 const formatScore = (score) => {
   if (score === null || score === undefined) return "—";
-
   return `${Number(score.toFixed(2))}%`;
 };
 
-const ScoreBadge = ({ score }) => {
+// Supports either a numeric foreign key or a nested Django object.
+const getRelatedId = (value) => {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === "object") {
+    return value.id ?? value.pk ?? null;
+  }
+
+  return value;
+};
+
+const ScoreBadge = ({ score, onClick }) => {
   if (score === null || score === undefined) {
     return (
       <span className="inline-flex items-center rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">
@@ -84,16 +91,35 @@ const ScoreBadge = ({ score }) => {
           ? "bg-amber-50 text-amber-700 ring-amber-200"
           : "bg-red-50 text-red-700 ring-red-200";
 
-  return (
-    <span
-      className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${color}`}
-    >
-      {formatScore(score)}
-    </span>
-  );
+  const className = `inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ring-inset transition ${color} ${
+    onClick
+      ? "cursor-pointer hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+      : ""
+  }`;
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={className}
+        title="View rating feedback"
+        aria-label={`View feedback for rating ${formatScore(score)}`}
+      >
+        {formatScore(score)}
+      </button>
+    );
+  }
+
+  return <span className={className}>{formatScore(score)}</span>;
 };
 
-const MaterialCell = ({ material, icon: Icon, variant = "best" }) => {
+const MaterialCell = ({
+  material,
+  icon: Icon,
+  variant = "best",
+  onRatingClick,
+}) => {
   if (!material) {
     return (
       <div className="flex min-w-40 items-center justify-center gap-2 text-gray-400">
@@ -124,7 +150,7 @@ const MaterialCell = ({ material, icon: Icon, variant = "best" }) => {
         </p>
 
         <div className="mt-1">
-          <ScoreBadge score={material.score} />
+          <ScoreBadge score={material.score} onClick={onRatingClick} />
         </div>
       </div>
     </div>
@@ -180,20 +206,13 @@ const PerformanceCell = ({ score }) => {
   );
 };
 
-// Build each student's highest and lowest individual rating records
-// using the data returned by /api/ratings/.
+// Keep the exact rating record so the modal displays its corresponding feedback.
 const buildStudentPerformance = (ratings) => {
   const performanceByStudent = new Map();
 
   ratings.forEach((rating) => {
-    const studentId =
-      typeof rating.student === "object" ? rating.student?.id : rating.student;
-
-    const materialId =
-      typeof rating.material_title === "object"
-        ? rating.material_title?.id
-        : rating.material_title;
-
+    const studentId = getRelatedId(rating.student);
+    const materialId = getRelatedId(rating.material_title);
     const score = parseScore(rating.rate);
 
     if (studentId == null || materialId == null || score === null) {
@@ -224,19 +243,18 @@ const buildStudentPerformance = (ratings) => {
       title: materialTitle,
       score,
       created: rating.created || null,
+      feedback: rating.feedback || "",
+      ratingId: rating.id ?? null,
     };
 
-    // Highest individual rating for this student.
     if (!performance.highest || record.score > performance.highest.score) {
       performance.highest = record;
     }
 
-    // Lowest individual rating for this student.
     if (!performance.lowest || record.score < performance.lowest.score) {
       performance.lowest = record;
     }
 
-    // Count valid rating records for the summary card.
     performance.materialsRated += 1;
   });
 
@@ -253,6 +271,13 @@ const getStudentPerformance = (studentId, performanceByStudent) => {
   );
 };
 
+const getApiList = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.results)) return data.results;
+  if (Array.isArray(data?.users)) return data.users;
+  return [];
+};
+
 const Students = () => {
   const [students, setStudents] = useState([]);
   const [ratings, setRatings] = useState([]);
@@ -260,8 +285,10 @@ const Students = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState(null);
+  const [selectedFeedback, setSelectedFeedback] = useState(null);
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -273,19 +300,8 @@ const Students = () => {
         api.get("/api/ratings/"),
       ]);
 
-      const studentData = Array.isArray(studentsResponse.data)
-        ? studentsResponse.data
-        : Array.isArray(studentsResponse.data?.results)
-          ? studentsResponse.data.results
-          : Array.isArray(studentsResponse.data?.users)
-            ? studentsResponse.data.users
-            : [];
-
-      const ratingsData = Array.isArray(ratingsResponse.data)
-        ? ratingsResponse.data
-        : Array.isArray(ratingsResponse.data?.results)
-          ? ratingsResponse.data.results
-          : [];
+      const studentData = getApiList(studentsResponse.data);
+      const ratingsData = getApiList(ratingsResponse.data);
 
       setStudents(
         studentData
@@ -299,7 +315,7 @@ const Students = () => {
 
       setError(
         err.response?.data?.detail ||
-          "Unable to load students and reading scores. Check your Django server, API URLs, and ratings endpoint.",
+          "Unable to load students and reading scores. Check your Django server and API URLs.",
       );
     } finally {
       setLoading(false);
@@ -336,13 +352,18 @@ const Students = () => {
 
   const paginatedStudents = useMemo(() => {
     const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
-
     return filteredStudents.slice(startIndex, startIndex + PAGE_SIZE);
   }, [filteredStudents, safeCurrentPage]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const firstEntry =
     filteredStudents.length === 0 ? 0 : (safeCurrentPage - 1) * PAGE_SIZE + 1;
@@ -390,29 +411,21 @@ const Students = () => {
       await api.delete(`/api/users/delete/${student.id}/`);
 
       setStudents((previous) =>
-        previous.filter((item) => item.id !== student.id),
+        previous.filter((item) => String(item.id) !== String(student.id)),
       );
 
       setRatings((previous) =>
         previous.filter((rating) => {
-          const id =
-            typeof rating.student === "object"
-              ? rating.student?.id
-              : rating.student;
-
-          return String(id) !== String(student.id);
+          const ratingStudentId = getRelatedId(rating.student);
+          return String(ratingStudentId) !== String(student.id);
         }),
       );
 
-      setCurrentPage((page) => {
-        const remainingCount = filteredStudents.length - 1;
-        const newTotalPages = Math.max(
-          1,
-          Math.ceil(Math.max(remainingCount, 0) / PAGE_SIZE),
-        );
-
-        return Math.min(page, newTotalPages);
-      });
+      setSelectedFeedback((previous) =>
+        previous && String(previous.student.id) === String(student.id)
+          ? null
+          : previous,
+      );
 
       await Swal.fire({
         title: "Deleted!",
@@ -441,13 +454,20 @@ const Students = () => {
       });
     }
   };
-  console.log(ratings);
+
+  const openFeedback = (student, material) => {
+    if (!material) return;
+
+    setSelectedFeedback({ student, material });
+  };
+
   return (
     <>
       <Sidebar />
 
       <main className="min-h-screen bg-[#F8FAFC] p-4 sm:p-6 lg:ml-72 lg:p-8">
         <div className="mx-auto max-w-[1600px]">
+          {/* Header */}
           <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
               <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-800">
@@ -460,7 +480,7 @@ const Students = () => {
                 </h1>
                 <p className="mt-1 text-sm text-gray-500">
                   Review each student's strongest and least-performing reading
-                  materials.
+                  materials. Click a rating to view its feedback.
                 </p>
               </div>
             </div>
@@ -490,7 +510,7 @@ const Students = () => {
             </div>
           </div>
 
-          {/* Summary */}
+          {/* Summary cards */}
           <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
@@ -597,19 +617,15 @@ const Students = () => {
                     <th className="whitespace-nowrap px-6 py-4 sm:px-8">
                       Student
                     </th>
-
                     <th className="min-w-64 whitespace-nowrap px-6 py-4 text-center">
                       Best Material
                     </th>
-
                     <th className="min-w-64 whitespace-nowrap px-6 py-4 text-center">
                       Least Best Material
                     </th>
-
                     <th className="whitespace-nowrap px-6 py-4 text-center">
                       Performance
                     </th>
-
                     <th className="whitespace-nowrap px-6 py-4 text-center sm:px-8">
                       Actions
                     </th>
@@ -620,7 +636,7 @@ const Students = () => {
                   {loading && students.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={5}
                         className="px-6 py-12 text-center text-sm text-gray-500"
                       >
                         Loading students and reading scores...
@@ -665,6 +681,9 @@ const Students = () => {
                               material={performance.highest}
                               icon={Trophy}
                               variant="best"
+                              onRatingClick={() =>
+                                openFeedback(student, performance.highest)
+                              }
                             />
                           </td>
 
@@ -673,6 +692,9 @@ const Students = () => {
                               material={performance.lowest}
                               icon={BookOpen}
                               variant="least"
+                              onRatingClick={() =>
+                                openFeedback(student, performance.lowest)
+                              }
                             />
                           </td>
 
@@ -711,7 +733,7 @@ const Students = () => {
                   ) : (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={5}
                         className="px-6 py-12 text-center text-sm text-gray-400"
                       >
                         {searchTerm
@@ -753,7 +775,7 @@ const Students = () => {
                   )
                   .reduce((result, page, index, pages) => {
                     if (index > 0 && page - pages[index - 1] > 1) {
-                      result.push("ellipsis-" + page);
+                      result.push(`ellipsis-${page}`);
                     }
 
                     result.push(page);
@@ -799,13 +821,15 @@ const Students = () => {
           </div>
 
           <p className="mt-4 text-xs leading-5 text-gray-400">
-            Best material displays the highest individual rating recorded. Least
-            best material displays the lowest individual rating recorded.
-            Invalid scores outside 1–100 are excluded.
+            Best Material displays the highest individual rating recorded. Least
+            Best Material displays the lowest individual rating recorded. Click
+            a percentage to read its feedback. Invalid scores outside 0–100 are
+            excluded.
           </p>
         </div>
       </main>
 
+      {/* Add student */}
       {isAddModalOpen && (
         <AddStudentModal
           onClose={() => setIsAddModalOpen(false)}
@@ -813,11 +837,21 @@ const Students = () => {
         />
       )}
 
+      {/* Edit student */}
       {studentToEdit && (
         <EditStudentModal
           student={studentToEdit}
           onClose={() => setStudentToEdit(null)}
           onRefresh={handleRefresh}
+        />
+      )}
+
+      {/* Rating feedback */}
+      {selectedFeedback && (
+        <FeedbackModal
+          student={selectedFeedback.student}
+          material={selectedFeedback.material}
+          onClose={() => setSelectedFeedback(null)}
         />
       )}
     </>
