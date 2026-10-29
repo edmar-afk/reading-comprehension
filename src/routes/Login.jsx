@@ -1,198 +1,214 @@
-/* eslint-disable no-unused-vars */
-import React from "react";
-import { motion } from "framer-motion";
-import { BookOpen, User, Lock, ArrowRight, Leaf, Feather } from "lucide-react";
-import loginAnimation from "../utils/loginAnimations";
-import { Link } from "react-router-dom";
+import React, { useState } from "react";
+import {
+  FiUser,
+  FiLock,
+  FiEye,
+  FiEyeOff,
+  FiMapPin,
+  FiBookOpen,
+} from "react-icons/fi";
+import Swal from "sweetalert2";
+import { useNavigate } from "react-router-dom";
 
-function Login() {
+import bg from "../assets/images/bg.jpg";
+import logo from "../assets/images/logo.jpg";
+
+export default function Login() {
+  const navigate = useNavigate();
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    setLoading(true);
+
+    try {
+      // DEMO LOGIN ONLY.
+      // Replace this block with your backend/database API
+      // before deploying the application.
+      if (
+        username.trim() === "admin" &&
+        password === "admin123"
+      ) {
+        await Swal.fire({
+          icon: "success",
+          title: "Login Successful!",
+          text: "Welcome back, Administrator.",
+          confirmButtonText: "Continue",
+          confirmButtonColor: "#065f46",
+          allowOutsideClick: false,
+        });
+
+        navigate("/dashboard", { replace: true });
+      } else {
+        await Swal.fire({
+          icon: "error",
+          title: "Login Failed",
+          text: "Invalid username or password.",
+          confirmButtonColor: "#065f46",
+        });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+
+      Swal.fire({
+        icon: "error",
+        title: "Something went wrong",
+        text: "Please try again.",
+        confirmButtonColor: "#065f46",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#173B2F] flex items-center justify-center px-2 md:px-6 py-4 md:py-10">
-      <motion.div
-        variants={loginAnimation.background}
-        initial="hidden"
-        animate="show"
-        className="absolute inset-0"
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-[#10271F] via-[#173B2F] to-[#2C5C47]" />
+    <div
+      className="min-h-screen w-full relative flex flex-col justify-between bg-cover bg-center bg-no-repeat font-sans"
+      style={{ backgroundImage: `url(${bg})` }}
+    >
+      {/* Dark Overlay */}
+      <div className="absolute inset-0 bg-black/25 z-0" />
 
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-green-400/20 blur-[120px]" />
-          <div className="absolute bottom-20 right-20 w-80 h-80 rounded-full bg-lime-300/10 blur-[120px]" />
+      {/* Main Container */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-8">
+        {/* Header */}
+        <div className="text-center text-white mb-6 drop-shadow-md">
+          <h1 className="text-4xl sm:text-5xl font-black tracking-wide">
+            JHCSC
+          </h1>
+
+          <h2 className="text-sm sm:text-base font-bold tracking-wider mt-1 uppercase">
+            CANUTO MS ENERIO CAMPUS
+          </h2>
+
+          <p className="text-xs sm:text-sm font-semibold tracking-wide text-gray-200 mt-1 uppercase">
+            BISWANGAN, LAKEWOOD
+            <br />
+            ZAMBOANGA DEL SUR
+          </p>
         </div>
 
-        <motion.div
-          variants={loginAnimation.leafOne}
-          animate="animate"
-          className="absolute top-20 left-24 text-green-300/15"
-        >
-          <Leaf size={70} />
-        </motion.div>
+        {/* Login Card */}
+        <div className="w-full max-w-md bg-white/35 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-white/40 shadow-2xl flex flex-col items-center text-gray-800">
+          <h3 className="text-center text-lg sm:text-xl font-bold text-white mb-4 leading-tight drop-shadow-sm">
+            Intelligent Reading Performance
+            <br />
+            Evaluation Platform Using AI
+          </h3>
 
-        <motion.div
-          variants={loginAnimation.leafTwo}
-          animate="animate"
-          className="absolute bottom-24 right-28 text-lime-200/15"
-        >
-          <Leaf size={95} />
-        </motion.div>
+          {/* Logo */}
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden mb-4 border-2 border-white/60 bg-white shadow-md flex items-center justify-center">
+            <img
+              src={logo}
+              alt="JHCSC Seal"
+              className="w-full h-full object-cover"
+            />
+          </div>
 
-        <motion.div
-          variants={loginAnimation.feather}
-          animate="animate"
-          className="absolute top-44 right-44 text-white/10"
-        >
-          <Feather size={70} />
-        </motion.div>
-      </motion.div>
+          {/* Welcome */}
+          <h2 className="text-2xl font-bold text-emerald-950 mb-0.5">
+            Welcome Back!
+          </h2>
 
-      <motion.div
-        variants={loginAnimation.paper}
-        initial="hidden"
-        animate="show"
-        className="relative z-10 w-full max-w-md"
-      >
-        <div className="absolute -inset-2 rounded-[36px] bg-gradient-to-br from-[#C9A95A] via-[#E8D79A] to-[#A9842A] opacity-40 blur-xl" />
+          <p className="text-emerald-900 text-sm font-medium mb-6">
+            Login to continue
+          </p>
 
-        <div className="relative overflow-hidden rounded-[34px] border border-[#D8C48A] bg-[#F8F5EC] shadow-[0_30px_70px_rgba(0,0,0,.45)]">
-          <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/paper.png')]" />
-
-          <div className="absolute top-5 left-5 h-8 w-8 border-l-2 border-t-2 border-[#C8A84F]" />
-          <div className="absolute top-5 right-5 h-8 w-8 border-r-2 border-t-2 border-[#C8A84F]" />
-          <div className="absolute bottom-5 left-5 h-8 w-8 border-l-2 border-b-2 border-[#C8A84F]" />
-          <div className="absolute bottom-5 right-5 h-8 w-8 border-r-2 border-b-2 border-[#C8A84F]" />
-
-          <div className="relative px-10 py-12">
-            <motion.div
-              variants={loginAnimation.logo}
-              animate="animate"
-              className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#D8C48A] bg-gradient-to-br from-[#35694F] to-[#214635] shadow-lg"
-            >
-              <BookOpen size={42} className="text-[#F9F4E5]" />
-            </motion.div>
-
-            <motion.h1
-              variants={loginAnimation.title}
-              initial="hidden"
-              animate="show"
-              className="mt-8 text-center font-serif text-2xl md:text-4xl font-bold text-[#214635]"
-            >
-              Reading
-              <br />
-              Comprehension
-            </motion.h1>
-
-            <form className="space-y-6 mt-8">
-              <div>
-                <label className="mb-2 block text-sm font-semibold tracking-wide text-[#31563D]">
-                  Username
-                </label>
-
-                <div className="group flex items-center border-b-2 border-[#D8C48A] pb-3 transition duration-300 focus-within:border-[#35694F]">
-                  <User size={20} className="text-[#35694F]" />
-
-                  <input
-                    type="text"
-                    placeholder="Enter your username"
-                    className="ml-3 w-full bg-transparent text-[#214635] outline-none placeholder:text-gray-400"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold tracking-wide text-[#31563D]">
-                  Password
-                </label>
-
-                <div className="group flex items-center border-b-2 border-[#D8C48A] pb-3 transition duration-300 focus-within:border-[#35694F]">
-                  <Lock size={20} className="text-[#35694F]" />
-
-                  <input
-                    type="password"
-                    placeholder="Enter your password"
-                    className="ml-3 w-full bg-transparent text-[#214635] outline-none placeholder:text-gray-400"
-                  />
-                </div>
-              </div>{" "}
-              <Link to={'/dashboard'}>
-                <motion.button
-                  variants={loginAnimation.button}
-                  whileHover="hover"
-                  whileTap="tap"
-                  type="submit"
-                  className="group cursor-pointer relative mt-4 flex h-14 w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-r from-[#214635] via-[#35694F] to-[#4F8A64] text-white shadow-xl"
-                >
-                  <motion.div
-                    variants={loginAnimation.buttonLight}
-                    animate="animate"
-                    className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent"
-                  />
-
-                  <span className="relative flex items-center gap-3 font-semibold tracking-wide">
-                    Open Book
-                    <motion.div
-                      variants={loginAnimation.arrow}
-                      animate="animate"
-                    >
-                      <ArrowRight size={18} />
-                    </motion.div>
-                  </span>
-                </motion.button>
-              </Link>
-            </form>
-
-            <div className="my-10 flex items-center">
-              <div className="h-px flex-1 bg-[#D8C48A]" />
-              <span className="mx-4 text-xs uppercase tracking-[0.35em] text-[#A48A55]">
-                Begin Learning
+          {/* Login Form */}
+          <form onSubmit={handleSubmit} className="w-full space-y-4">
+            {/* Username */}
+            <div className="relative flex items-center">
+              <span className="absolute left-4 text-emerald-900 text-xl">
+                <FiUser />
               </span>
-              <div className="h-px flex-1 bg-[#D8C48A]" />
+
+              <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                required
+                disabled={loading}
+                className="w-full bg-white/80 focus:bg-white text-gray-800 placeholder-gray-500 rounded-xl py-3.5 pl-12 pr-4 outline-none transition duration-200 shadow-inner disabled:opacity-70"
+              />
             </div>
 
-            <p className="mt-10 text-center text-sm text-[#4B5D55]">
-              New to Reading Comprehension?
-            </p>
+            {/* Password */}
+            <div className="relative flex items-center">
+              <span className="absolute left-4 text-emerald-900 text-xl">
+                <FiLock />
+              </span>
 
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                disabled={loading}
+                className="w-full bg-white/80 focus:bg-white text-gray-800 placeholder-gray-500 rounded-xl py-3.5 pl-12 pr-12 outline-none transition duration-200 shadow-inner disabled:opacity-70"
+              />
+
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={
+                  showPassword ? "Hide password" : "Show password"
+                }
+                className="absolute right-4 text-emerald-900 text-xl focus:outline-none"
+              >
+                {showPassword ? <FiEyeOff /> : <FiEye />}
+              </button>
+            </div>
+
+            {/* Submit */}
             <button
-              type="button"
-              className="mt-3 w-full rounded-xl border border-[#35694F] py-3 font-semibold text-[#35694F] transition hover:bg-[#35694F] hover:text-white"
+              type="submit"
+              disabled={loading}
+              className="w-full bg-emerald-900 hover:bg-emerald-950 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-xl shadow-lg transition duration-200 mt-2 text-base"
             >
-              Create Account
+              {loading ? "Logging in..." : "Login"}
             </button>
+          </form>
+        </div>
+      </div>
 
-            <div className="mt-10 flex justify-center gap-3">
-              <motion.span
-                variants={loginAnimation.sparkle}
-                animate="animate"
-                className="h-2 w-2 rounded-full bg-[#C7A64A]"
-              />
+      {/* Footer */}
+      <div className="relative z-10 bg-emerald-900 text-white rounded-t-[2.5rem] px-6 py-4 mt-4 shadow-lg">
+        <div className="max-w-4xl mx-auto flex flex-row items-center justify-between text-xs sm:text-sm font-medium">
+          <div className="flex items-center space-x-2">
+            <FiMapPin className="text-xl sm:text-2xl flex-shrink-0" />
 
-              <motion.span
-                variants={loginAnimation.sparkle}
-                animate="animate"
-                transition={{
-                  delay: 0.5,
-                  duration: 3,
-                  repeat: Infinity,
-                }}
-                className="h-2 w-2 rounded-full bg-[#35694F]"
-              />
-
-              <motion.span
-                variants={loginAnimation.sparkle}
-                animate="animate"
-                transition={{
-                  delay: 1,
-                  duration: 3,
-                  repeat: Infinity,
-                }}
-                className="h-2 w-2 rounded-full bg-[#C7A64A]"
-              />
+            <div>
+              <p className="leading-tight">Biswangan, Lakewood</p>
+              <p className="leading-tight text-gray-300">
+                Zamboanga del Sur
+              </p>
             </div>
           </div>
+
+          <div className="flex items-center space-x-2 text-right">
+            <div>
+              <p className="leading-tight font-semibold">
+                Sapientia et Cultura
+              </p>
+
+              <p className="leading-tight text-gray-300 text-[11px] sm:text-xs">
+                (Wisdom and Culture)
+              </p>
+            </div>
+
+            <FiBookOpen className="text-xl sm:text-2xl flex-shrink-0" />
+          </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
-
-export default Login;

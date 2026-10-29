@@ -25,9 +25,9 @@ const menus = [
         to: "/dashboard",
       },
       {
-        title: "Reading Lessons",
+        title: "Reading Materials",
         icon: BookOpen,
-        to: "/reading-lessons",
+        to: "/reading-materials",
       },
       {
         title: "Students",
@@ -41,16 +41,16 @@ const menus = [
       },
     ],
   },
-  {
-    title: "SYSTEM",
-    items: [
-      {
-        title: "Profile Settings",
-        icon: Settings,
-        to: "/settings",
-      },
-    ],
-  },
+  // {
+  //   title: "SYSTEM",
+  //   items: [
+  //     {
+  //       title: "Profile Settings",
+  //       icon: Settings,
+  //       to: "/settings",
+  //     },
+  //   ],
+  // },
 ];
 
 function Sidebar({ open, onClose }) {
