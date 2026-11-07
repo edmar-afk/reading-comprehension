@@ -34,15 +34,14 @@ const difficultyOptions = [
   },
 ];
 
-const AddReadingMaterialModal = ({ isOpen, onClose, onSaved }) => {
+const AddReadingMaterialModal = ({ onClose, onSaved }) => {
   const [title, setTitle] = useState("");
   const [difficulty, setDifficulty] = useState("");
   const [passage, setPassage] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  if (!isOpen) return null;
-
+  
   const wordCount = passage.trim() ? passage.trim().split(/\s+/).length : 0;
 
   const characterCount = passage.trim().length;

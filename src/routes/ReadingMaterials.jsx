@@ -1,6 +1,14 @@
 /* eslint-disable no-unused-vars */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, FileText, BookOpen, Users, RefreshCw } from "lucide-react";
+import {
+  Search,
+  FileText,
+  BookOpen,
+  Users,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
+import Swal from "sweetalert2";
 import SideBar from "../components/sidebar/SideBar";
 import AddReadingMaterialModal from "../components/readingmaterials/AddReadingMaterialModal";
 import api from "../assets/api";
@@ -132,6 +140,50 @@ const ReadingMaterials = () => {
   const handleMaterialSaved = async () => {
     setIsAddModalOpen(false);
     await fetchMaterials();
+  };
+
+  const handleDeleteMaterial = async (id, title) => {
+    const result = await Swal.fire({
+      title: "Delete Reading Material?",
+      text: `Are you sure you want to delete "${title}"? This action cannot be undone.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete it",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      reverseButtons: true,
+      focusCancel: true,
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      await api.delete(`/api/reading-materials/delete/${id}/`);
+
+      // Immediately remove the deleted material from the UI.
+      setMaterials((prev) => prev.filter((item) => item.id !== id));
+
+      await Swal.fire({
+        title: "Deleted!",
+        text: "Reading material has been successfully deleted.",
+        icon: "success",
+        confirmButtonColor: "#059669",
+        timer: 1800,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      console.error("Failed to delete reading material:", err);
+
+      Swal.fire({
+        title: "Delete Failed",
+        text:
+          err.response?.data?.detail ||
+          "Unable to delete this reading material. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#dc2626",
+      });
+    }
   };
 
   return (
@@ -268,11 +320,11 @@ const ReadingMaterials = () => {
               {filteredMaterials.length > 0 ? (
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                   {filteredMaterials.map((item) => (
-                    <Link
+                    <div
                       key={item.id}
-                      to={`/start-reading/${item.id}`}
-                      className={`flex min-h-[280px] flex-col rounded-2xl border border-gray-100 border-l-4 ${item.accent} bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:p-6`}
+                      className={`relative flex min-h-[280px] flex-col rounded-2xl border border-gray-100 border-l-4 ${item.accent} bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-md sm:p-6`}
                     >
+                      {/* Header */}
                       <div className="mb-4 flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
                           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-emerald-600">
@@ -280,61 +332,84 @@ const ReadingMaterials = () => {
                           </div>
 
                           <div className="min-w-0">
-                            <h2 className="break-words text-lg font-bold text-gray-900">
+                            <Link
+                              to={`/start-reading/${item.id}`}
+                              className="break-words text-lg font-bold text-gray-900 hover:text-emerald-700"
+                            >
                               {item.title}
-                            </h2>
+                            </Link>
 
                             <p className="mt-1 text-xs text-gray-400">
                               {item.date_added
-                                ? `Added ${new Date(
-                                    item.date_added,
-                                  ).toLocaleDateString()}`
+                                ? `Added ${new Date(item.date_added).toLocaleDateString()}`
                                 : "Reading material"}
                             </p>
                           </div>
                         </div>
 
-                        <span
-                          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold capitalize ${item.badge}`}
-                        >
-                          {item.difficulty}
-                        </span>
-                      </div>
+                        {/* Difficulty and Delete */}
+                        <div className="flex shrink-0 flex-col items-end gap-2">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${item.badge}`}
+                          >
+                            {item.difficulty}
+                          </span>
 
-                      <p className="mb-6 line-clamp-4 whitespace-pre-line break-words text-sm leading-6 text-gray-600">
-                        {item.description || "No reading content available."}
-                      </p>
-
-                      <div className="mt-auto grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
-                        <div className="min-w-0">
-                          <div className="mb-1 flex items-center gap-1.5 text-gray-500">
-                            <Users size={15} />
-                            <span className="text-xs font-medium">
-                              Student challenges
-                            </span>
-                          </div>
-
-                          <p className="text-sm font-bold text-emerald-700">
-                            {item.studentCount.toLocaleString()}{" "}
-                            {item.studentCount === 1 ? "student" : "students"}
-                          </p>
-                        </div>
-
-                        <div className="min-w-0 text-right">
-                          <div className="mb-1 flex items-center justify-end gap-1.5 text-gray-500">
-                            <FileText size={15} />
-                            <span className="text-xs font-medium">
-                              Reading length
-                            </span>
-                          </div>
-
-                          <p className="text-sm font-bold text-gray-800">
-                            {item.wordCount.toLocaleString()}{" "}
-                            {item.wordCount === 1 ? "word" : "words"}
-                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDeleteMaterial(item.id, item.title)
+                            }
+                            title="Delete reading material"
+                            className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-600 hover:text-white"
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </button>
                         </div>
                       </div>
-                    </Link>
+
+                      {/* Reading Content */}
+                      <Link
+                        to={`/start-reading/${item.id}`}
+                        className="flex flex-1 flex-col"
+                      >
+                        <p className="mb-6 line-clamp-4 whitespace-pre-line break-words text-sm leading-6 text-gray-600">
+                          {item.description || "No reading content available."}
+                        </p>
+
+                        {/* Footer */}
+                        <div className="mt-auto grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
+                          <div className="min-w-0">
+                            <div className="mb-1 flex items-center gap-1.5 text-gray-500">
+                              <Users size={15} />
+                              <span className="text-xs font-medium">
+                                Student challenges
+                              </span>
+                            </div>
+
+                            <p className="text-sm font-bold text-emerald-700">
+                              {item.studentCount.toLocaleString()}{" "}
+                              {item.studentCount === 1 ? "student" : "students"}
+                            </p>
+                          </div>
+
+                          <div className="min-w-0 text-right">
+                            <div className="mb-1 flex items-center justify-end gap-1.5 text-gray-500">
+                              <FileText size={15} />
+                              <span className="text-xs font-medium">
+                                Reading length
+                              </span>
+                            </div>
+
+                            <p className="text-sm font-bold text-gray-800">
+                              {item.wordCount.toLocaleString()}{" "}
+                              {item.wordCount === 1 ? "word" : "words"}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    </div>
                   ))}
                 </div>
               ) : (
