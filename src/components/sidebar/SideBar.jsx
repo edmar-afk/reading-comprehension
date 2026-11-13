@@ -9,9 +9,10 @@ import {
   BookOpen,
   Users,
   ChartColumn,
-  Settings,
   LogOut,
 } from "lucide-react";
+
+import { Link } from "react-router-dom";
 
 const drawerWidth = 300;
 
@@ -23,6 +24,7 @@ const menus = [
         title: "Dashboard",
         icon: LayoutDashboard,
         to: "/dashboard",
+        superuserOnly: true,
       },
       {
         title: "Reading Materials",
@@ -33,32 +35,45 @@ const menus = [
         title: "Students",
         icon: Users,
         to: "/students",
+        superuserOnly: true,
       },
       {
         title: "Analytics",
         icon: ChartColumn,
         to: "/analytics",
+        superuserOnly: true,
       },
     ],
   },
-  // {
-  //   title: "SYSTEM",
-  //   items: [
-  //     {
-  //       title: "Profile Settings",
-  //       icon: Settings,
-  //       to: "/settings",
-  //     },
-  //   ],
-  // },
 ];
 
 function Sidebar({ open, onClose }) {
+  // GET USER INFORMATION FROM LOCAL STORAGE
+  let userData = {};
+
+  try {
+    userData = JSON.parse(localStorage.getItem("userInfo") || "{}");
+  } catch (error) {
+    console.error("Failed to read userData:", error);
+  }
+
+  const isSuperuser = userData?.is_superuser === true;
+
+  // FILTER MENUS BASED ON USER ROLE
+  const filteredMenus = menus
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => !item.superuserOnly || isSuperuser
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
+
   const content = (
     <div className="flex h-full flex-col">
-      {/* Logo */}
-      <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-xl px-6 py-6">
-        {/* Mobile Close */}
+      {/* LOGO */}
+      <div className="sticky top-0 z-20 bg-white/90 px-6 py-6 backdrop-blur-xl">
+        {/* MOBILE CLOSE */}
         <div className="mb-5 flex justify-end lg:hidden">
           <IconButton onClick={onClose}>
             <X size={22} />
@@ -68,9 +83,9 @@ function Sidebar({ open, onClose }) {
         <Logo />
       </div>
 
-      {/* Navigation */}
+      {/* NAVIGATION */}
       <div className="flex-1 overflow-y-auto px-4 pb-6">
-        {menus.map((group) => (
+        {filteredMenus.map((group) => (
           <div key={group.title} className="mt-8">
             <p className="mb-3 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
               {group.title}
@@ -90,9 +105,11 @@ function Sidebar({ open, onClose }) {
         ))}
       </div>
 
-      {/* Footer */}
+      {/* FOOTER */}
       <div className="border-t border-slate-200 p-4">
-        <button
+        <Link
+          to="/logout"
+          onClick={onClose}
           className="
             flex
             w-full
@@ -107,16 +124,15 @@ function Sidebar({ open, onClose }) {
           "
         >
           <LogOut size={20} />
-
           <span className="text-sm font-medium">Logout</span>
-        </button>
+        </Link>
       </div>
     </div>
   );
 
   return (
     <>
-      {/* Desktop */}
+      {/* DESKTOP */}
       <Drawer
         variant="permanent"
         PaperProps={{
@@ -130,10 +146,12 @@ function Sidebar({ open, onClose }) {
         }}
         className="hidden lg:block"
       >
-        <div className="h-full rounded-3xl bg-white shadow-xl">{content}</div>
+        <div className="h-full rounded-3xl bg-white shadow-xl">
+          {content}
+        </div>
       </Drawer>
 
-      {/* Mobile */}
+      {/* MOBILE */}
       <Drawer
         open={open}
         onClose={onClose}
@@ -151,7 +169,9 @@ function Sidebar({ open, onClose }) {
         }}
         className="lg:hidden"
       >
-        <div className="h-full rounded-3xl bg-white shadow-xl">{content}</div>
+        <div className="h-full rounded-3xl bg-white shadow-xl">
+          {content}
+        </div>
       </Drawer>
     </>
   );

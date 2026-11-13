@@ -1,9 +1,21 @@
+
 import React, { useState } from "react";
-import { X, UserPlus, UserRound, LoaderCircle, CheckCircle2 } from "lucide-react";
+import {
+  X,
+  UserPlus,
+  UserRound,
+  LoaderCircle,
+  CheckCircle2,
+  Lock,
+  AtSign,
+} from "lucide-react";
 import api from "../../assets/api";
 
 const AddStudentModal = ({ onClose, onRefresh }) => {
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [credentials, setCredentials] = useState(null);
@@ -12,9 +24,15 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
     event.preventDefault();
 
     const trimmedName = fullName.trim();
+    const trimmedUsername = username.trim();
 
-    if (!trimmedName) {
-      setError("Please enter the student's full name.");
+    if (!trimmedName || !trimmedUsername || !password) {
+      setError("Please complete all fields.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must contain at least 8 characters.");
       return;
     }
 
@@ -24,26 +42,30 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
     try {
       const response = await api.post("/api/users/add/", {
         first_name: trimmedName,
+        username: trimmedUsername,
+        password: password,
       });
 
       const data = response.data?.user || response.data;
 
-      // Refresh the parent immediately after a successful creation.
       if (typeof onRefresh === "function") {
         await onRefresh();
       }
 
       setCredentials({
-        username: data?.username || "",
-        password: data?.password || "",
+        username: data?.username || trimmedUsername,
+        password: password,
         name: data?.first_name || trimmedName,
       });
     } catch (err) {
       console.error("Failed to create student:", err);
 
       const responseData = err.response?.data;
+
       const detail =
         responseData?.detail ||
+        responseData?.username?.[0] ||
+        responseData?.password?.[0] ||
         responseData?.first_name?.[0] ||
         responseData?.non_field_errors?.[0] ||
         responseData?.error;
@@ -51,12 +73,15 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
       setError(
         typeof detail === "string"
           ? detail
-          : "Unable to create the student. Please check your connection and try again."
+          : "Unable to create the student. Please try again."
       );
     } finally {
       setLoading(false);
     }
   };
+
+  const inputClass =
+    "w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 disabled:bg-gray-50";
 
   return (
     <div
@@ -73,6 +98,7 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
         aria-labelledby="add-student-title"
         className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
       >
+        {/* Header */}
         <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
@@ -90,10 +116,11 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
               >
                 {credentials ? "Student Created" : "Add New Student"}
               </h2>
+
               <p className="mt-1 text-sm text-gray-500">
                 {credentials
-                  ? "The student account was created successfully."
-                  : "Enter the student's full name below."}
+                  ? "Student account created successfully."
+                  : "Create a student account and login credentials."}
               </p>
             </div>
           </div>
@@ -109,6 +136,7 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
           </button>
         </div>
 
+        {/* Success */}
         {credentials ? (
           <div className="space-y-5 p-6">
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -116,35 +144,24 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
                 {credentials.name}
               </p>
 
-              {credentials.username && (
-                <div className="mt-4">
-                  <p className="text-xs font-medium text-gray-500">
-                    Generated username
-                  </p>
-                  <p className="mt-1 break-all font-mono text-sm text-gray-900">
-                    {credentials.username}
-                  </p>
-                </div>
-              )}
+              <div className="mt-4">
+                <p className="text-xs font-medium text-gray-500">
+                  Username
+                </p>
+                <p className="mt-1 break-all font-mono text-sm text-gray-900">
+                  {credentials.username}
+                </p>
+              </div>
 
-              {credentials.password && (
-                <div className="mt-3">
-                  <p className="text-xs font-medium text-gray-500">
-                    Generated password
-                  </p>
-                  <p className="mt-1 break-all font-mono text-sm text-gray-900">
-                    {credentials.password}
-                  </p>
-                </div>
-              )}
+              <div className="mt-3">
+                <p className="text-xs font-medium text-gray-500">
+                  Password
+                </p>
+                <p className="mt-1 break-all font-mono text-sm text-gray-900">
+                  {credentials.password}
+                </p>
+              </div>
             </div>
-
-            {(!credentials.username || !credentials.password) && (
-              <p className="text-sm leading-6 text-gray-500">
-                The account was created, but the server did not return all
-                generated credentials. Check the API response or your backend.
-              </p>
-            )}
 
             <button
               type="button"
@@ -155,13 +172,15 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
             </button>
           </div>
         ) : (
+          /* Form */
           <form onSubmit={handleSubmit} className="space-y-5 p-6">
+            {/* Full Name */}
             <div>
               <label
                 htmlFor="student-full-name"
                 className="mb-2 block text-sm font-semibold text-gray-700"
               >
-                Student Full Name
+                Full Name
               </label>
 
               <div className="relative">
@@ -169,6 +188,7 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
                   size={18}
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
                 />
+
                 <input
                   id="student-full-name"
                   type="text"
@@ -180,15 +200,80 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
                   required
                   autoFocus
                   disabled={loading}
-                  className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 disabled:bg-gray-50"
+                  className={inputClass}
                 />
               </div>
 
-              <p className="mt-2 text-xs text-gray-400">
-                The backend will generate the student's login credentials.
+              <p className="mt-1.5 text-xs text-gray-400">
+                Saved in the first_name field.
               </p>
             </div>
 
+            {/* Username */}
+            <div>
+              <label
+                htmlFor="student-username"
+                className="mb-2 block text-sm font-semibold text-gray-700"
+              >
+                Username
+              </label>
+
+              <div className="relative">
+                <AtSign
+                  size={18}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+
+                <input
+                  id="student-username"
+                  type="text"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="Enter username"
+                  autoComplete="username"
+                  maxLength={150}
+                  required
+                  disabled={loading}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label
+                htmlFor="student-password"
+                className="mb-2 block text-sm font-semibold text-gray-700"
+              >
+                Password
+              </label>
+
+              <div className="relative">
+                <Lock
+                  size={18}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+
+                <input
+                  id="student-password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Enter password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                  disabled={loading}
+                  className={inputClass}
+                />
+              </div>
+
+              <p className="mt-1.5 text-xs text-gray-400">
+                Minimum 8 characters.
+              </p>
+            </div>
+
+            {/* Error */}
             {error && (
               <p
                 role="alert"
@@ -198,6 +283,7 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
               </p>
             )}
 
+            {/* Buttons */}
             <div className="flex gap-3 pt-1">
               <button
                 type="button"
@@ -210,7 +296,12 @@ const AddStudentModal = ({ onClose, onRefresh }) => {
 
               <button
                 type="submit"
-                disabled={loading || !fullName.trim()}
+                disabled={
+                  loading ||
+                  !fullName.trim() ||
+                  !username.trim() ||
+                  !password
+                }
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
               >
                 {loading ? (

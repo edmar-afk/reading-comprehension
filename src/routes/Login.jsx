@@ -9,7 +9,7 @@ import {
 } from "react-icons/fi";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom";
-
+import api from "../assets/api";
 import bg from "../assets/images/bg.jpg";
 import logo from "../assets/images/logo.jpg";
 
@@ -24,41 +24,59 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (loading) return;
+
     setLoading(true);
 
     try {
-      // DEMO LOGIN ONLY.
-      // Replace this block with your backend/database API
-      // before deploying the application.
-      if (
-        username.trim() === "admin" &&
-        password === "admin123"
-      ) {
-        await Swal.fire({
-          icon: "success",
-          title: "Login Successful!",
-          text: "Welcome back, Administrator.",
-          confirmButtonText: "Continue",
-          confirmButtonColor: "#065f46",
-          allowOutsideClick: false,
-        });
+      // Send credentials to Django
+      const response = await api.post("/api/login/", {
+        username: username.trim(),
+        password: password,
+      });
 
+      const userData = response.data.user;
+
+      if (!userData || !userData.id) {
+        throw new Error("Invalid user information received.");
+      }
+
+      // Save authenticated user's information
+      localStorage.setItem("userInfo", JSON.stringify(userData));
+
+      console.log("Logged in user:", userData);
+
+      await Swal.fire({
+        icon: "success",
+        title: "Login Successful!",
+        text: `Welcome back, ${userData.first_name || userData.username}!`,
+        confirmButtonText: "Continue",
+        confirmButtonColor: "#065f46",
+        allowOutsideClick: false,
+      });
+
+      // Redirect after successful login
+      // Redirect based on user role
+      if (userData.is_superuser === true) {
         navigate("/dashboard", { replace: true });
       } else {
-        await Swal.fire({
-          icon: "error",
-          title: "Login Failed",
-          text: "Invalid username or password.",
-          confirmButtonColor: "#065f46",
-        });
+        navigate("/reading-materials", { replace: true });
       }
     } catch (error) {
       console.error("Login error:", error);
 
-      Swal.fire({
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Unable to connect to the server. Please try again.";
+
+      await Swal.fire({
         icon: "error",
-        title: "Something went wrong",
-        text: "Please try again.",
+        title:
+          error.response?.status === 401
+            ? "Login Failed"
+            : "Something went wrong",
+        text: errorMessage,
         confirmButtonColor: "#065f46",
       });
     } finally {
@@ -159,9 +177,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
-                aria-label={
-                  showPassword ? "Hide password" : "Show password"
-                }
+                aria-label={showPassword ? "Hide password" : "Show password"}
                 className="absolute right-4 text-emerald-900 text-xl focus:outline-none"
               >
                 {showPassword ? <FiEyeOff /> : <FiEye />}
@@ -176,6 +192,7 @@ export default function Login() {
             >
               {loading ? "Logging in..." : "Login"}
             </button>
+            <p className="text-center">Ask your teacher for Account creation if you dont have an active account.</p>
           </form>
         </div>
       </div>
@@ -188,9 +205,7 @@ export default function Login() {
 
             <div>
               <p className="leading-tight">Biswangan, Lakewood</p>
-              <p className="leading-tight text-gray-300">
-                Zamboanga del Sur
-              </p>
+              <p className="leading-tight text-gray-300">Zamboanga del Sur</p>
             </div>
           </div>
 

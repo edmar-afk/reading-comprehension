@@ -20,6 +20,7 @@ import {
 import Swal from "sweetalert2";
 import SideBar from "../components/sidebar/SideBar";
 import api from "../assets/api";
+import ReadingQuizModal from "../components/readingmaterials/ReadingQuizModal";
 
 const HISTORY_POINTS = 60;
 
@@ -197,7 +198,6 @@ const generateFeedback = ({
   const comparison = compareReading(expectedText, spokenText);
 
   const minutes = durationSeconds / 60;
-
   const wpm = minutes > 0 ? Math.round(comparison.correct / minutes) : 0;
 
   const average = samples.length
@@ -216,10 +216,7 @@ const generateFeedback = ({
     ? (samples.filter((v) => v >= 55).length / samples.length) * 100
     : 0;
 
-  // Pronunciation indicator based on alignment between
-  // the expected reading passage and recognized speech.
   const pronunciationScore = comparison.accuracy;
-
   const accuracyScore = comparison.accuracy;
   const fluencyScore = getFluencyScore(wpm);
   const comprehensionScore = comparison.coverage;
@@ -290,7 +287,9 @@ const generateFeedback = ({
 
   if (comparison.extra.length) {
     feedback.push(
-      `Additional recognized words: ${comparison.extra.slice(0, 20).join(", ")}.`,
+      `Additional recognized words: ${comparison.extra
+        .slice(0, 20)
+        .join(", ")}.`,
     );
   }
 
@@ -350,15 +349,43 @@ const CriterionCard = ({ title, score, description, color = "emerald" }) => {
 const StartReading = () => {
   const { id } = useParams();
 
+  /* ============================================================
+     USER INFORMATION
+  ============================================================ */
+
+  const userData = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("userInfo") || "{}");
+    } catch {
+      return {};
+    }
+  })();
+
+  const isSuperuser = userData?.is_superuser === true;
+
+  const loggedInUserId = userData?.id ? String(userData.id) : "";
+
+  /* ============================================================
+     STATES
+  ============================================================ */
+
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [assessmentSubmitted, setAssessmentSubmitted] = useState(false);
+
   const [material, setMaterial] = useState(null);
   const [loadingMaterial, setLoadingMaterial] = useState(true);
   const [materialError, setMaterialError] = useState("");
 
   const [students, setStudents] = useState([]);
-  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [loadingStudents, setLoadingStudents] = useState(isSuperuser);
   const [studentError, setStudentError] = useState("");
 
-  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [selectedStudentId, setSelectedStudentId] = useState(
+    isSuperuser ? "" : loggedInUserId,
+  );
+
+  const effectiveStudentId = isSuperuser ? selectedStudentId : loggedInUserId;
 
   const [modelLoading, setModelLoading] = useState(false);
   const [modelReady, setModelReady] = useState(false);
@@ -379,6 +406,7 @@ const StartReading = () => {
   const [partialTranscript, setPartialTranscript] = useState("");
 
   const [generatedAssessment, setGeneratedAssessment] = useState(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [readingComparison, setReadingComparison] = useState(null);
 
@@ -391,9 +419,7 @@ const StartReading = () => {
   const analyserRef = useRef(null);
   const animationRef = useRef(null);
 
-  // Web Speech API
   const recognitionRef = useRef(null);
-
   const mountedRef = useRef(true);
 
   const recordingStartedAtRef = useRef(null);
@@ -482,7 +508,12 @@ const StartReading = () => {
       }
     };
 
-    if (id) fetchMaterial();
+    if (id) {
+      fetchMaterial();
+    } else {
+      setLoadingMaterial(false);
+      setMaterialError("Reading material ID is missing.");
+    }
 
     return () => {
       cancelled = true;
@@ -490,13 +521,19 @@ const StartReading = () => {
   }, [id]);
 
   /* ============================================================
-     FETCH STUDENTS
+     FETCH STUDENTS — SUPERUSER ONLY
   ============================================================ */
 
   useEffect(() => {
     let cancelled = false;
 
     const fetchStudents = async () => {
+      if (!isSuperuser) {
+        setLoadingStudents(false);
+        setStudents([]);
+        return;
+      }
+
       setLoadingStudents(true);
       setStudentError("");
 
@@ -532,13 +569,13 @@ const StartReading = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isSuperuser]);
 
   /* ============================================================
      STUDENT LABEL
   ============================================================ */
 
-  const getStudentLabel = (student) => {
+  const getStudentLabel = (student = {}) => {
     const fullName = [student.first_name, student.last_name]
       .filter(Boolean)
       .join(" ")
@@ -550,7 +587,7 @@ const StartReading = () => {
       fullName ||
       student.username ||
       student.email ||
-      `User #${student.id}`
+      (student.id ? `User #${student.id}` : "Student")
     );
   };
 
@@ -591,7 +628,6 @@ const StartReading = () => {
       const level = Math.min(100, Math.round(rms * 350));
 
       setVolume(level);
-
       volumeSamplesRef.current.push(level);
 
       setVolumeHistory((previous) => [...previous.slice(1), level]);
@@ -639,6 +675,7 @@ const StartReading = () => {
 
     isRecordingRef.current = false;
     isPausedRef.current = true;
+    shouldFinalizeRef.current = true;
 
     const fullTranscript = finalTranscriptRef.current.trim();
 
@@ -709,6 +746,7 @@ const StartReading = () => {
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
+
         const recognizedText = result[0]?.transcript?.trim() || "";
 
         if (!recognizedText) continue;
@@ -772,14 +810,11 @@ const StartReading = () => {
     recognition.onend = () => {
       if (!mountedRef.current) return;
 
-      // Finish was explicitly requested.
       if (shouldFinalizeRef.current) {
         finalizeAssessment();
         return;
       }
 
-      // Recognition ended while the student was still reading.
-      // Restart automatically to avoid losing the session.
       if (isRecordingRef.current && !isPausedRef.current) {
         if (restartTimerRef.current) {
           clearTimeout(restartTimerRef.current);
@@ -808,11 +843,10 @@ const StartReading = () => {
   };
 
   /* ============================================================
-     START READING
+     START / RESTART READING
   ============================================================ */
 
   const startNewRecording = async () => {
-    // Clean up any previous recording before restarting.
     isRecordingRef.current = false;
     isPausedRef.current = true;
 
@@ -845,6 +879,11 @@ const StartReading = () => {
 
     setRecordingComplete(false);
     setHasStarted(false);
+
+    // RESET SUBMISSION STATES
+    setQuizSubmitted(false);
+    setAssessmentSubmitted(false);
+    setShowQuizModal(false);
 
     setVolume(0);
     setVolumeHistory(Array(HISTORY_POINTS).fill(0));
@@ -882,7 +921,6 @@ const StartReading = () => {
 
       setModelLoading(true);
 
-      // Get microphone stream for the loudness meter.
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -892,13 +930,14 @@ const StartReading = () => {
       });
 
       if (!mountedRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
+        stream.getTracks().forEach((track) => {
+          track.stop();
+        });
         return;
       }
 
       streamRef.current = stream;
 
-      // Initialize audio analyzer.
       const AudioContextClass =
         window.AudioContext || window.webkitAudioContext;
 
@@ -925,7 +964,6 @@ const StartReading = () => {
 
       analyserRef.current = analyser;
 
-      // Initialize browser speech recognition.
       const recognition = createSpeechRecognizer();
 
       setModelReady(true);
@@ -968,7 +1006,9 @@ const StartReading = () => {
   ============================================================ */
 
   const handleMicClick = async () => {
-    if (recordingComplete || isRecording) return;
+    if (recordingComplete || isRecording || modelLoading) {
+      return;
+    }
 
     setReadingComparison(null);
 
@@ -1011,7 +1051,8 @@ const StartReading = () => {
       !hasStarted ||
       recordingComplete ||
       !recognitionRef.current ||
-      isRecording
+      isRecording ||
+      finalizingRef.current
     ) {
       return;
     }
@@ -1050,7 +1091,12 @@ const StartReading = () => {
   ============================================================ */
 
   const handleFinish = () => {
-    if (!recognitionRef.current || recordingComplete || !hasStarted) {
+    if (
+      !recognitionRef.current ||
+      recordingComplete ||
+      !hasStarted ||
+      finalizingRef.current
+    ) {
       return;
     }
 
@@ -1071,12 +1117,18 @@ const StartReading = () => {
     setIsRecording(false);
     setVolume(0);
 
+    // If already paused, recognition may have ended.
+    // Finalize directly instead of waiting for another onend.
+    if (!recordingStartedAtRef.current && !isRecording) {
+      finalizeAssessment();
+      return;
+    }
+
     try {
       recognitionRef.current.stop();
     } catch (error) {
       console.error("Unable to stop speech recognition:", error);
 
-      // Ensure the assessment can still finish.
       finalizeAssessment();
     }
   };
@@ -1127,6 +1179,11 @@ const StartReading = () => {
 
     setModelReady(false);
 
+    // RESET SUBMISSION STATES
+    setQuizSubmitted(false);
+    setAssessmentSubmitted(false);
+    setShowQuizModal(false);
+
     finalTranscriptRef.current = "";
     partialTranscriptRef.current = "";
 
@@ -1139,17 +1196,85 @@ const StartReading = () => {
   };
 
   /* ============================================================
-     SUBMIT RATING
+     SAVE READING RATING
+  ============================================================ */
+
+  const submitReadingRating = async () => {
+    if (assessmentSubmitted || submitting || !generatedAssessment) {
+      return;
+    }
+
+    if (!effectiveStudentId) {
+      setMicError(
+        isSuperuser
+          ? "Please select a student before submitting."
+          : "Your account ID could not be identified. Please log in again.",
+      );
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      await api.post("/api/ratings/", {
+        student: Number(effectiveStudentId),
+        material_title: Number(material.id || id),
+        rate: `${generatedAssessment.accuracy}%`,
+        feedback: generatedAssessment.text,
+      });
+
+      setAssessmentSubmitted(true);
+      setShowQuizModal(false);
+
+      await Swal.fire({
+        title: "Assessment Saved",
+        text: "Your reading assessment and quiz result have been saved successfully.",
+        icon: "success",
+        confirmButtonColor: "#047857",
+      });
+    } catch (error) {
+      console.error("Failed to submit reading rating:", error);
+
+      const detail = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : "Check that your Django /api/ratings/ endpoint is configured correctly.";
+
+      await Swal.fire({
+        title: "Reading Rating Submission Failed",
+        text: detail,
+        icon: "error",
+        confirmButtonColor: "#047857",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /* ============================================================
+     SUBMIT RATING / OPEN QUIZ
   ============================================================ */
 
   const handleSubmit = async () => {
-    if (!selectedStudentId) {
-      setMicError("Please select a student before submitting.");
+    if (assessmentSubmitted || submitting) return;
+
+    if (!effectiveStudentId) {
+      setMicError(
+        isSuperuser
+          ? "Please select a student before submitting."
+          : "Your account ID could not be identified. Please log in again.",
+      );
       return;
     }
 
     if (!recordingComplete || !generatedAssessment) {
       setMicError("Finish the reading to generate the assessment.");
+      return;
+    }
+
+    // Quiz already submitted:
+    // Retry saving the reading rating.
+    if (quizSubmitted) {
+      await submitReadingRating();
       return;
     }
 
@@ -1159,7 +1284,7 @@ const StartReading = () => {
         text: "The speech recognizer did not recognize any words. Submit this assessment anyway?",
         icon: "warning",
         showCancelButton: true,
-        confirmButtonText: "Submit Anyway",
+        confirmButtonText: "Continue to Quiz",
         cancelButtonText: "Go Back",
         confirmButtonColor: "#047857",
       });
@@ -1167,39 +1292,22 @@ const StartReading = () => {
       if (!result.isConfirmed) return;
     }
 
-    setSubmitting(true);
     setMicError("");
+    setShowQuizModal(true);
+  };
 
-    try {
-      await api.post("/api/ratings/", {
-        student: Number(selectedStudentId),
-        material_title: Number(material.id || id),
-        rate: `${generatedAssessment.accuracy}%`,
-        feedback: generatedAssessment.text,
-      });
+  /* ============================================================
+     QUIZ SUBMITTED
+  ============================================================ */
 
-      await Swal.fire({
-        title: "Assessment Saved",
-        text: "The reading feedback has been saved successfully.",
-        icon: "success",
-        confirmButtonColor: "#047857",
-      });
-    } catch (error) {
-      console.error("Failed to submit rating:", error);
+  const handleQuizSubmitted = async () => {
+    if (quizSubmitted || submitting) return;
 
-      const detail = error.response?.data
-        ? JSON.stringify(error.response.data)
-        : "Check that your Django /api/ratings/ endpoint is configured correctly.";
+    // Mark quiz as submitted first.
+    setQuizSubmitted(true);
 
-      await Swal.fire({
-        title: "Submission Failed",
-        text: detail,
-        icon: "error",
-        confirmButtonColor: "#047857",
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    // Continue saving the reading assessment.
+    await submitReadingRating();
   };
 
   /* ============================================================
@@ -1225,11 +1333,9 @@ const StartReading = () => {
     : volumeHistory[HISTORY_POINTS - 1];
 
   const voiceLevelLabel =
-    displayedVolume < 20
-      ? "Soft"
-      : displayedVolume < 55
-        ? "Moderate"
-        : "Loud"; /* ============================================================
+    displayedVolume < 20 ? "Soft" : displayedVolume < 55 ? "Moderate" : "Loud";
+
+  /* ============================================================
      USER INTERFACE
   ============================================================ */
 
@@ -1282,8 +1388,6 @@ const StartReading = () => {
               </div>
             </div>
           ) : (
-            /* MAIN CONTENT */
-
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto pb-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:overflow-hidden">
               {/* =================================================
                   LEFT: READING PASSAGE
@@ -1532,7 +1636,6 @@ const StartReading = () => {
                   <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                     <div className="rounded-lg bg-sky-50 p-2">
                       <p className="text-[11px] font-bold text-sky-700">Soft</p>
-
                       <p className="text-[10px] text-sky-600">0–19%</p>
                     </div>
 
@@ -1540,7 +1643,6 @@ const StartReading = () => {
                       <p className="text-[11px] font-bold text-emerald-700">
                         Moderate
                       </p>
-
                       <p className="text-[10px] text-emerald-600">20–54%</p>
                     </div>
 
@@ -1548,7 +1650,6 @@ const StartReading = () => {
                       <p className="text-[11px] font-bold text-amber-700">
                         Loud
                       </p>
-
                       <p className="text-[10px] text-amber-600">55–100%</p>
                     </div>
                   </div>
@@ -1609,6 +1710,7 @@ const StartReading = () => {
                     disabled={
                       !hasStarted ||
                       recordingComplete ||
+                      finalizingRef.current ||
                       (isRecording === false && !recognitionRef.current)
                     }
                     className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1625,7 +1727,12 @@ const StartReading = () => {
                   <button
                     type="button"
                     onClick={handleReset}
-                    disabled={!hasStarted && !micError && !modelError}
+                    disabled={
+                      !hasStarted &&
+                      !micError &&
+                      !modelError &&
+                      !recordingComplete
+                    }
                     className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <RotateCcw size={14} />
@@ -1645,9 +1752,7 @@ const StartReading = () => {
                   </button>
                 </div>
 
-                {/* =================================================
-                    AUTOMATIC ASSESSMENT
-                ================================================= */}
+                {/* AUTOMATIC ASSESSMENT */}
 
                 {generatedAssessment && (
                   <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
@@ -1665,8 +1770,6 @@ const StartReading = () => {
                         </p>
                       </div>
                     </div>
-
-                    {/* FOUR CRITERIA */}
 
                     <div className="grid grid-cols-2 gap-2">
                       <CriterionCard
@@ -1749,45 +1852,70 @@ const StartReading = () => {
                 )}
 
                 {/* =================================================
-                    STUDENT SELECTION
+                    STUDENT SELECTION — ROLE-BASED
                 ================================================= */}
 
                 <div className="rounded-xl border border-gray-100 p-3">
-                  <label className="mb-2 flex items-center gap-2 text-xs font-bold text-gray-700">
-                    <UserRound size={15} className="text-emerald-700" />
-                    Select Student
-                  </label>
+                  {isSuperuser ? (
+                    <>
+                      <label className="mb-2 flex items-center gap-2 text-xs font-bold text-gray-700">
+                        <UserRound size={15} className="text-emerald-700" />
+                        Select Student
+                      </label>
 
-                  <select
-                    value={selectedStudentId}
-                    onChange={(event) =>
-                      setSelectedStudentId(event.target.value)
-                    }
-                    disabled={loadingStudents || submitting}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50"
-                  >
-                    <option value="">
-                      {loadingStudents
-                        ? "Loading students..."
-                        : "Choose a student"}
-                    </option>
+                      <select
+                        value={selectedStudentId}
+                        onChange={(event) =>
+                          setSelectedStudentId(event.target.value)
+                        }
+                        disabled={
+                          loadingStudents ||
+                          submitting ||
+                          quizSubmitted ||
+                          assessmentSubmitted
+                        }
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50"
+                      >
+                        <option value="">
+                          {loadingStudents
+                            ? "Loading students..."
+                            : "Choose a student"}
+                        </option>
 
-                    {students.map((student) => (
-                      <option key={student.id} value={student.id}>
-                        {getStudentLabel(student)}
-                      </option>
-                    ))}
-                  </select>
+                        {students.map((student) => (
+                          <option key={student.id} value={student.id}>
+                            {getStudentLabel(student)}
+                          </option>
+                        ))}
+                      </select>
 
-                  <p className="mt-1.5 text-[10px] text-gray-400">
-                    The selected student's reading assessment will be saved to
-                    the rating record.
-                  </p>
+                      <p className="mt-1.5 text-[10px] text-gray-400">
+                        Select the student whose reading assessment will be
+                        saved.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mb-2 flex items-center gap-2 text-xs font-bold text-gray-700">
+                        <UserRound size={15} className="text-emerald-700" />
+                        Student Account
+                      </div>
+
+                      <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2.5">
+                        <p className="text-sm font-semibold text-emerald-800">
+                          {getStudentLabel(userData)}
+                        </p>
+
+                        <p className="mt-1 text-[10px] text-emerald-700">
+                          Your reading assessment will automatically be saved
+                          under your own account.
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                {/* =================================================
-                    SUBMIT RATING
-                ================================================= */}
+                {/* SUBMIT RATING */}
 
                 <button
                   type="button"
@@ -1795,8 +1923,9 @@ const StartReading = () => {
                   disabled={
                     !recordingComplete ||
                     !generatedAssessment ||
-                    !selectedStudentId ||
-                    submitting
+                    !effectiveStudentId ||
+                    submitting ||
+                    assessmentSubmitted
                   }
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -1804,6 +1933,16 @@ const StartReading = () => {
                     <>
                       <RefreshCw size={16} className="animate-spin" />
                       Saving Assessment...
+                    </>
+                  ) : assessmentSubmitted ? (
+                    <>
+                      <CheckCircle2 size={16} />
+                      Reading Assessment Submitted
+                    </>
+                  ) : quizSubmitted ? (
+                    <>
+                      <CheckCircle2 size={16} />
+                      Submit Reading Assessment
                     </>
                   ) : (
                     <>
@@ -1822,6 +1961,17 @@ const StartReading = () => {
           )}
         </div>
       </main>
+
+      {/* READING QUIZ MODAL */}
+
+      {showQuizModal && (
+        <ReadingQuizModal
+          materialId={material?.id || id}
+          studentId={effectiveStudentId}
+          onQuizSubmitted={handleQuizSubmitted}
+          onClose={() => setShowQuizModal(false)}
+        />
+      )}
     </div>
   );
 };

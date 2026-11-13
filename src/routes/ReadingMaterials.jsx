@@ -45,6 +45,24 @@ const getMaterialStyle = (difficulty) => {
 };
 
 const ReadingMaterials = () => {
+  // ==========================================
+  // USER ROLE FROM LOCAL STORAGE
+  // ==========================================
+
+  let userData = {};
+
+  try {
+    userData = JSON.parse(localStorage.getItem("userData") || "{}");
+  } catch (error) {
+    console.error("Failed to read userData from localStorage:", error);
+  }
+
+  const isSuperuser = userData?.is_superuser === true;
+  console.log("userData : ", userData);
+  // ==========================================
+  // STATES
+  // ==========================================
+
   const [materials, setMaterials] = useState([]);
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -52,7 +70,10 @@ const ReadingMaterials = () => {
   const [error, setError] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // Fetch the latest reading materials from Django.
+  // ==========================================
+  // FETCH READING MATERIALS
+  // ==========================================
+
   const fetchMaterials = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -60,7 +81,6 @@ const ReadingMaterials = () => {
     try {
       const response = await api.get("/api/reading-materials/");
 
-      // Supports either a regular array or Django REST Framework pagination.
       const data = Array.isArray(response.data)
         ? response.data
         : Array.isArray(response.data?.results)
@@ -70,6 +90,7 @@ const ReadingMaterials = () => {
       setMaterials(data);
     } catch (err) {
       console.error("Failed to fetch reading materials:", err);
+
       setError(
         err.response?.data?.detail ||
           "Unable to load reading materials. Please check your Django server and API URL.",
@@ -83,13 +104,15 @@ const ReadingMaterials = () => {
     fetchMaterials();
   }, [fetchMaterials]);
 
-  // Format API data for the material cards.
+  // ==========================================
+  // FORMAT MATERIAL DATA
+  // ==========================================
+
   const formattedMaterials = useMemo(() => {
     return materials.map((item) => {
       const difficulty = item.difficulty || "Easy";
       const style = getMaterialStyle(difficulty);
 
-      // Prefer the backend word_count; otherwise count words locally.
       const wordCount =
         typeof item.word_count === "number"
           ? item.word_count
@@ -110,7 +133,10 @@ const ReadingMaterials = () => {
     });
   }, [materials]);
 
-  // Search by title, content, or difficulty.
+  // ==========================================
+  // SEARCH AND FILTER
+  // ==========================================
+
   const filteredMaterials = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
@@ -121,13 +147,15 @@ const ReadingMaterials = () => {
         item.description.toLowerCase().includes(query) ||
         item.difficulty.toLowerCase().includes(query);
 
-      // Assigned currently displays all materials because the supplied
-      // ReadingMaterials model has no assignment field.
       const matchesTab = activeTab === "all" || activeTab === "assigned";
 
       return matchesSearch && matchesTab;
     });
   }, [formattedMaterials, searchQuery, activeTab]);
+
+  // ==========================================
+  // TOTAL STUDENTS
+  // ==========================================
 
   const totalStudents = useMemo(() => {
     return formattedMaterials.reduce(
@@ -136,11 +164,24 @@ const ReadingMaterials = () => {
     );
   }, [formattedMaterials]);
 
-  // Called after the separate modal successfully saves a material.
+  // ==========================================
+  // ADD MATERIAL CALLBACK
+  // ==========================================
+
   const handleMaterialSaved = async () => {
     setIsAddModalOpen(false);
     await fetchMaterials();
   };
+
+  const openAddModal = () => {
+    if (!isSuperuser) return;
+
+    setIsAddModalOpen(true);
+  };
+
+  // ==========================================
+  // DELETE MATERIAL
+  // ==========================================
 
   const handleDeleteMaterial = async (id, title) => {
     const result = await Swal.fire({
@@ -161,7 +202,6 @@ const ReadingMaterials = () => {
     try {
       await api.delete(`/api/reading-materials/delete/${id}/`);
 
-      // Immediately remove the deleted material from the UI.
       setMaterials((prev) => prev.filter((item) => item.id !== id));
 
       await Swal.fire({
@@ -186,24 +226,30 @@ const ReadingMaterials = () => {
     }
   };
 
+  // ==========================================
+  // UI
+  // ==========================================
+
   return (
     <div className="min-h-screen bg-gray-50">
       <SideBar />
 
       <main className="min-h-screen px-4 py-6 sm:px-6 lg:ml-64 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          {/* Header */}
+          {/* HEADER */}
           <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
                 Reading Materials
               </h1>
+
               <p className="mt-2 text-sm text-gray-500 sm:text-base">
                 Manage reading passages and track student challenges.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              {/* REFRESH - AVAILABLE TO EVERYONE */}
               <button
                 type="button"
                 onClick={fetchMaterials}
@@ -217,28 +263,33 @@ const ReadingMaterials = () => {
                 Refresh
               </button>
 
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-              >
-                <FileText size={18} />
-                Add Material
-              </button>
+              {/* ADD MATERIAL - SUPERUSER ONLY */}
+              {isSuperuser && (
+                <button
+                  type="button"
+                  onClick={openAddModal}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                >
+                  <FileText size={18} />
+                  Add Material
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Summary cards */}
+          {/* SUMMARY CARDS */}
           <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                   <BookOpen size={23} />
                 </div>
+
                 <div>
                   <p className="text-sm font-medium text-gray-500">
                     Total Materials
                   </p>
+
                   <p className="mt-1 text-2xl font-bold text-gray-900">
                     {formattedMaterials.length}
                   </p>
@@ -251,10 +302,12 @@ const ReadingMaterials = () => {
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                   <Users size={23} />
                 </div>
+
                 <div>
                   <p className="text-sm font-medium text-gray-500">
                     Recorded Student Challenges
                   </p>
+
                   <p className="mt-1 text-2xl font-bold text-gray-900">
                     {totalStudents.toLocaleString()}
                   </p>
@@ -263,13 +316,14 @@ const ReadingMaterials = () => {
             </div>
           </div>
 
-          {/* Search and tabs */}
+          {/* SEARCH */}
           <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div className="relative w-full">
               <Search
                 size={19}
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
               />
+
               <input
                 type="text"
                 value={searchQuery}
@@ -280,13 +334,14 @@ const ReadingMaterials = () => {
             </div>
           </div>
 
-          {/* Error message */}
+          {/* ERROR MESSAGE */}
           {error && (
             <div
               role="alert"
               className="mb-6 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
             >
               <p>{error}</p>
+
               <button
                 type="button"
                 onClick={fetchMaterials}
@@ -297,7 +352,7 @@ const ReadingMaterials = () => {
             </div>
           )}
 
-          {/* Loading state */}
+          {/* LOADING STATE */}
           {loading && materials.length === 0 && (
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               {[1, 2, 3].map((number) => (
@@ -314,7 +369,7 @@ const ReadingMaterials = () => {
             </div>
           )}
 
-          {/* Material cards */}
+          {/* MATERIAL CARDS */}
           {(!loading || materials.length > 0) && (
             <>
               {filteredMaterials.length > 0 ? (
@@ -324,7 +379,7 @@ const ReadingMaterials = () => {
                       key={item.id}
                       className={`relative flex min-h-[280px] flex-col rounded-2xl border border-gray-100 border-l-4 ${item.accent} bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-md sm:p-6`}
                     >
-                      {/* Header */}
+                      {/* CARD HEADER */}
                       <div className="mb-4 flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
                           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-emerald-600">
@@ -341,13 +396,15 @@ const ReadingMaterials = () => {
 
                             <p className="mt-1 text-xs text-gray-400">
                               {item.date_added
-                                ? `Added ${new Date(item.date_added).toLocaleDateString()}`
+                                ? `Added ${new Date(
+                                    item.date_added,
+                                  ).toLocaleDateString()}`
                                 : "Reading material"}
                             </p>
                           </div>
                         </div>
 
-                        {/* Difficulty and Delete */}
+                        {/* DIFFICULTY AND DELETE */}
                         <div className="flex shrink-0 flex-col items-end gap-2">
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${item.badge}`}
@@ -355,21 +412,24 @@ const ReadingMaterials = () => {
                             {item.difficulty}
                           </span>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDeleteMaterial(item.id, item.title)
-                            }
-                            title="Delete reading material"
-                            className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-600 hover:text-white"
-                          >
-                            <Trash2 size={14} />
-                            Delete
-                          </button>
+                          {/* DELETE - SUPERUSER ONLY */}
+                          {isSuperuser && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDeleteMaterial(item.id, item.title)
+                              }
+                              title="Delete reading material"
+                              className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-600 hover:text-white"
+                            >
+                              <Trash2 size={14} />
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      {/* Reading Content */}
+                      {/* READING CONTENT */}
                       <Link
                         to={`/start-reading/${item.id}`}
                         className="flex flex-1 flex-col"
@@ -378,11 +438,12 @@ const ReadingMaterials = () => {
                           {item.description || "No reading content available."}
                         </p>
 
-                        {/* Footer */}
+                        {/* CARD FOOTER */}
                         <div className="mt-auto grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
                           <div className="min-w-0">
                             <div className="mb-1 flex items-center gap-1.5 text-gray-500">
                               <Users size={15} />
+
                               <span className="text-xs font-medium">
                                 Student challenges
                               </span>
@@ -397,6 +458,7 @@ const ReadingMaterials = () => {
                           <div className="min-w-0 text-right">
                             <div className="mb-1 flex items-center justify-end gap-1.5 text-gray-500">
                               <FileText size={15} />
+
                               <span className="text-xs font-medium">
                                 Reading length
                               </span>
@@ -413,6 +475,7 @@ const ReadingMaterials = () => {
                   ))}
                 </div>
               ) : (
+                /* EMPTY STATE */
                 <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
                   <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100 text-gray-400">
                     <BookOpen size={27} />
@@ -427,13 +490,14 @@ const ReadingMaterials = () => {
                   <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">
                     {searchQuery
                       ? "Try another search term."
-                      : "Add your first reading material to get started."}
+                      : "There are currently no reading materials available."}
                   </p>
 
-                  {!searchQuery && (
+                  {/* ADD BUTTON - SUPERUSER ONLY */}
+                  {!searchQuery && isSuperuser && (
                     <button
                       type="button"
-                      onClick={() => setIsAddModalOpen(true)}
+                      onClick={openAddModal}
                       className="mt-5 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
                     >
                       Add Reading Material
@@ -446,8 +510,8 @@ const ReadingMaterials = () => {
         </div>
       </main>
 
-      {/* Separate add-material modal */}
-      {isAddModalOpen && (
+      {/* ADD READING MATERIAL MODAL - SUPERUSER ONLY */}
+      {isSuperuser && isAddModalOpen && (
         <AddReadingMaterialModal
           onClose={() => setIsAddModalOpen(false)}
           onSaved={handleMaterialSaved}

@@ -43,6 +43,22 @@ const formatDate = (value) => {
   });
 };
 
+const getStudentId = (rating) => {
+  if (typeof rating.student === "object" && rating.student) {
+    return rating.student.id;
+  }
+
+  return rating.student;
+};
+
+const getMaterialId = (rating) => {
+  if (typeof rating.material_title === "object" && rating.material_title) {
+    return rating.material_title.id;
+  }
+
+  return rating.material_title;
+};
+
 const getStudentName = (rating) => {
   if (rating.student_name) return rating.student_name;
 
@@ -148,18 +164,29 @@ const RecentSubmissions = () => {
 
   const recentSubmissions = filteredSubmissions.slice(0, MAX_SUBMISSIONS);
 
+  // IMPORTANT: Pass the original rating's student and material IDs.
   const openFeedback = (submission) => {
+    const studentId = getStudentId(submission);
+    const materialId = getMaterialId(submission);
+
     setSelectedFeedback({
       student: {
+        id: studentId,
         name: submission._name,
         username:
           typeof submission.student === "object"
             ? submission.student?.username
             : "",
       },
+
       material: {
+        id: materialId,
+        student: studentId,
+        material_title: materialId,
+
         title: submission._material,
         score: submission._score,
+        rate: submission.rate,
         created: submission.created,
         feedback: submission.feedback || "",
         ratingId: submission.id ?? null,
@@ -347,7 +374,7 @@ const RecentSubmissions = () => {
         )}
       </div>
 
-      {/* Reuse the existing feedback modal */}
+      {/* Feedback modal */}
       {selectedFeedback && (
         <FeedbackModal
           student={selectedFeedback.student}
