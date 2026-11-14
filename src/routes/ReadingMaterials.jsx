@@ -52,7 +52,7 @@ const ReadingMaterials = () => {
   let userData = {};
 
   try {
-    userData = JSON.parse(localStorage.getItem("userData") || "{}");
+    userData = JSON.parse(localStorage.getItem("userInfo") || "{}");
   } catch (error) {
     console.error("Failed to read userData from localStorage:", error);
   }
